@@ -63,13 +63,13 @@ python -m scraper.step_3_download_attachments
 
 ### 步骤 4：渲染 HTML
 
-最后，将json内容渲染成 HTML 文件以供查看。另外，这一步还会创建一个主 `index.html` 文件，以及按年份归档的帖子目录，用于浏览所有归档帖子。
+最后，将json内容渲染成 HTML 文件以供查看。这些帖子保存在`output/$BOARD_ID/html/posts/`下。另外，这一步还会创建一个主 `index.html` 文件（在`output/$BOARD_ID/html/index.html`），以及按年份归档的帖子目录（在`output/$BOARD_ID/html/years/`下），用于浏览所有归档帖子。
 
 ```bash
 python -m scraper.step_4_render
 ```
 
--   此步骤完成后，您可以在浏览器中打开 `output/$BOARD_ID/html/index.html` 来查看归档。
+-   此步骤完成后，在浏览器中打开 `output/$BOARD_ID/html/index.html` 即可查看所有归档。
 
 ## 可能存在的问题
 
