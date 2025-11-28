@@ -1,0 +1,17 @@
+output/*
+example/*
+
+**/.mypy_cache
+__pycache__/
+*.egg-info/
+.ipynb_checkpoints
+env/
+venv/
+
+**/*.swp
+**/*.swo
+
+**/.DS_store
+**/.DS_Store
+**/tags
+**/._*

@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ year }}年帖子 - {{ board_name }}</title>
+    <style>
+        body { margin: 0; padding: 0; font-family: "Helvetica Neue", "Hiragino Sans GB", "Microsoft YaHei", "\9ED1\4F53", Arial, sans-serif; background-color: #f2f2f2; }
+        #page-thread { max-width: 980px; margin: 15px auto; background-color: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, .1); }
+        .breadcrumb-trail { padding: 15px 20px; font-size: 14px; color: #666; border-bottom: 1px solid #e7e7e7; }
+        .breadcrumb-trail a { color: #005a9c; text-decoration: none; }
+        #board-head { padding: 10px 20px; display: flex; align-items: center; justify-content: space-between; }
+        #board-head #title .eng { font-size: 24px; color: #444; }
+        #board-head #title .black { font-size: 16px; color: #666; margin-left: 10px; }
+        #list-body { border-top: 1px solid #e7e7e7; }
+        .list-title { display: flex; background: #f7f7f7; color: #888; font-size: 12px; padding: 8px 10px; border-bottom: 1px solid #e7e7e7; }
+        .list-item-topic { display: flex; padding: 8px 10px; border-bottom: 1px solid #f2f2f2; align-items: center; font-size: 14px; text-decoration: none; color: inherit; }
+        .list-item-topic:hover { background-color: #f7f7f7; }
+        .l { float: left; } /* Simplified from original */
+        .r { float: right; } /* Simplified */
+        .id { width: 5%; color: #aaa; }
+        .title-cont { width: 60%; }
+        .title-cont .title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+        .author, .reply-num, .last-reply { width: 10%; text-align: center; color: #666; font-size: 13px; }
+        .last-reply { width: 15%; }
+        .author .name, .last-reply .name { display: block; }
+        .author .time, .last-reply .time { font-size: 11px; color: #aaa; }
+        .reply-num { color: #333; }
+        a { text-decoration: none; color: #005a9c; }
+    </style>
+</head>
+<body>
+<div id="page-thread">
+    <div class="breadcrumb-trail">
+        <a href="../index.html">返回主索引</a> &gt; {{ year }}年
+    </div>
+    <div id="board-head">
+        <div id="title">
+            <span class="title-text eng">{{ board_name }}</span>
+            <span class="title-text black">{{ year }}年帖子列表</span>
+        </div>
+    </div>
+    <div id="list-body">
+        <div class="list-title">
+            <div class="id">序号</div>
+            <div class="title-cont">标题</div>
+            <div class="author">作者</div>
+            <div class="reply-num">回复</div>
+            <div class="last-reply">最后发表</div>
+        </div>
+        <div id="list-content">
+            {% for thread in threads %}
+            <a href="../posts/{{ thread.html_filename }}" class="list-item-topic">
+                <div class="id">{{ thread.id }}</div>
+                <div class="title-cont">
+                    <div class="title">{{ thread.title }}</div>
+                </div>
+                <div class="author">
+                    <div class="name">{{ thread.author }}</div>
+                    <div class="time">{{ thread.post_date }}</div>
+                </div>
+                <div class="reply-num">{{ thread.replies }}</div>
+                <div class="last-reply">
+                    <div class="name">{{ thread.last_reply_author }}</div>
+                    <div class="time">{{ thread.last_reply_date }}</div>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+</body>
+</html>
