@@ -1,6 +1,6 @@
 # 北大未名BBS爬虫
 
-本项目旨在抓取并归档北京大学未名BBS论坛上某一版面下的所有帖子内容及其附件，并生成一批html，方便非技术用户离线浏览和保存。项目代码基本通过拷打Gemini完成。
+本项目旨在抓取并归档北京大学未名BBS论坛上某一版面下的所有帖子内容和元数据，保存在JSON文件中，以及可下载所有附件，并生成一批HTML，方便非技术用户离线浏览和保存。项目代码基本通过拷打Gemini完成。
 
 暂不支持用户登录。因此，一些版面可能无法查看。另外，由于一些版面在不登录的情况下只能在北大校园网下访问，建议在校园网环境下使用该爬虫。
 
@@ -23,7 +23,7 @@
 
 在运行爬虫之前，可以编辑 `config.py` 文件来设置所需的参数。主要用到的参数有：
 
--   `BOARD_ID`：希望抓取的版面数字 ID（例如，"MANYATTA 蒙养山人类学学社" 版面为 `1090`。此版面帖子数量较少，可以用于测试）。
+-   `BOARD_ID`：希望抓取的版面数字ID（例如，“MANYATTA 蒙养山人类学学社”版面的网址为`https://bbs.pku.edu.cn/v2/thread.php?bid=1090`，则其版面ID为 `1090`。此版面帖子数量较少，可以用于测试）。
 -   `RUN_MODE`：操作模式。
     -   `'overwrite'`：从头开始抓取整个版面。
     -   `'update'`：仅抓取自上次运行以来新增或更新的帖子。
@@ -37,11 +37,13 @@
 此步骤逐页读取版面的目录页，以获取版面上所有帖子的列表，并将其元数据保存到 `output/$BOARD_ID` 目录中的 CSV 文件。
 
 ```bash
-python -m scraper.step_1_index --board_id 1090 --mode overwrite
+python -m scraper.step_1_index [--board_id BOARD_ID] [--mode MODE]
 ```
-可选参数（下面其他步骤都一样）：
+可选参数（下面其他步骤都一样。例外：第4步无`--mode`参数）：
 -   `--board_id`：（可选）覆盖 `config.py` 中的 `BOARD_ID`。
 -   `--mode`：（可选）覆盖 `config.py` 中的 `RUN_MODE`。
+
+在`update`模式下，此步骤会从最新帖子开始，获取到上次获取的信息中最晚回复日期的同一天为止。
 
 ### 步骤 2：抓取单个帖子
 
@@ -51,7 +53,9 @@ python -m scraper.step_1_index --board_id 1090 --mode overwrite
 python -m scraper.step_2_thread
 ```
 
-由于一些帖子中内置的图片是以base64编码嵌入在正文中的（包括主贴和评论），而不是像普通附件那样单独存储，因此这些图片会直接包含在 JSON 文件中。这会导致获取速度比较慢，且生成的 JSON 文件体积较大。
+由于一些帖子中内置的图片是以base64编码嵌入在正文中的（包括主贴和评论），而不是像普通附件那样单独存储，因此这些图片会直接包含在 JSON 文件中。这会导致这些帖子获取速度比较慢，且生成的 JSON 文件体积较大。
+
+在`update`模式下，此步骤只会获取此前没有JSON文件的新帖子，以及那些在步骤 1 中回复数量增加或最后回复时间更新的帖子。
 
 ### 步骤 3：下载附件（可跳过）
 
@@ -61,6 +65,8 @@ python -m scraper.step_2_thread
 python -m scraper.step_3_download_attachments
 ```
 
+在`update`模式下，此步骤会跳过所有已经存在的附件。
+
 ### 步骤 4：渲染 HTML
 
 最后，将json内容渲染成 HTML 文件以供查看。这些帖子保存在`output/$BOARD_ID/html/posts/`下。另外，这一步还会创建一个主 `index.html` 文件（在`output/$BOARD_ID/html/index.html`），以及按年份归档的帖子目录（在`output/$BOARD_ID/html/years/`下），用于浏览所有归档帖子。
@@ -69,10 +75,14 @@ python -m scraper.step_3_download_attachments
 python -m scraper.step_4_render
 ```
 
--   此步骤完成后，在浏览器中打开 `output/$BOARD_ID/html/index.html` 即可查看所有归档。
+这一步不支持`update`模式，强制渲染所有帖子的HTML。
+
+此步骤完成后，在浏览器中打开 `output/$BOARD_ID/html/index.html` 即可查看所有归档。
 
 ## 可能存在的问题
 
 - 在`update`模式下，如果一个此前存在的帖子内部的正文或评论被编辑过，可能无法被检测到，因为目前的实现仅通过帖子列表中的回复数量和最后回复（的发表）时间来判断帖子是否有更新。
 
 - 如果在程序运行步骤1生成`csv`索引的过程中，恰好有人发新帖，或挖旧坟，导致每页的内容有错位，可能导致帖子遗漏或重复。
+
+- 少量指向BBS内部的链接，可能没法直接在HTML中点击打开，需要复制链接内容到浏览器地址栏中访问。
