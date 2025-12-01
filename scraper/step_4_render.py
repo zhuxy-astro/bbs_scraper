@@ -145,7 +145,7 @@ def main():
 
     if not os.path.isdir(json_dir):
         print(f"JSON directory not found at {json_dir}. Please run Step 2 first.")
-        return
+        return 1
 
     # We need the CSV to generate the index.html with all metadata
     csv_filepath = None
@@ -153,11 +153,11 @@ def main():
         csv_files = [f for f in os.listdir(board_path) if f.endswith('.csv')]
         if not csv_files:
             print(f"Error: No CSV file found in {board_path} to build the index. Please run Step 1 first.")
-            return
+            return 1
         csv_filepath = os.path.join(board_path, sorted(csv_files, reverse=True)[0])
     except Exception as e:
         print(f"Error finding latest CSV file: {e}")
-        return
+        return 1
 
     # Extract board name from CSV filename for the HTML title
     try:
@@ -165,6 +165,7 @@ def main():
         board_name = filename_parts[1]
     except IndexError:
         board_name = "unknown"
+        return 1
 
     with open(csv_filepath, 'r', encoding='utf-8') as f:
         full_thread_list = list(csv.DictReader(f))
@@ -196,4 +197,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())

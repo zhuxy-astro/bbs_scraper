@@ -50,7 +50,7 @@ python -m scraper.step_1_index [--board_id BOARD_ID] [--mode MODE]
 此步骤读取步骤 1 中创建的 CSV 文件，然后抓取每个帖子的内容，并将其保存为 JSON 文件。这包含了除附件文件之外的所有文本和元数据，可用于纯文本分析。这些文件保存在 `output/$BOARD_ID/jsons/` 目录中。
 
 ```bash
-python -m scraper.step_2_thread
+python -m scraper.step_2_thread [--board_id BOARD_ID] [--mode MODE]
 ```
 
 由于一些帖子中内置的图片是以base64编码嵌入在正文中的（包括主贴和评论），而不是像普通附件那样单独存储，因此这些图片会直接包含在 JSON 文件中。这会导致这些帖子获取速度比较慢，且生成的 JSON 文件体积较大。
@@ -62,7 +62,7 @@ python -m scraper.step_2_thread
 这一步下载所有帖子的所有普通附件（如图片、文档等），并将它们保存在 `output/$BOARD_ID/attachments/` 目录中。附件一般比较大，因此此步骤可选。
 
 ```bash
-python -m scraper.step_3_download_attachments
+python -m scraper.step_3_download_attachments [--board_id BOARD_ID] [--mode MODE]
 ```
 
 在`update`模式下，此步骤会跳过所有已经存在的附件。
@@ -72,7 +72,7 @@ python -m scraper.step_3_download_attachments
 最后，将json内容渲染成 HTML 文件以供查看。这些帖子保存在`output/$BOARD_ID/html/posts/`下。另外，这一步还会创建一个主 `index.html` 文件（在`output/$BOARD_ID/html/index.html`），以及按年份归档的帖子目录（在`output/$BOARD_ID/html/years/`下），用于浏览所有归档帖子。
 
 ```bash
-python -m scraper.step_4_render
+python -m scraper.step_4_render [--board_id BOARD_ID]
 ```
 
 这一步不支持`update`模式，强制渲染所有帖子的HTML。

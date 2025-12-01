@@ -76,7 +76,7 @@ def main():
 
     if not os.path.isdir(json_dir):
         print(f"JSON directory not found at {json_dir}. Please run Step 2 first.")
-        return
+        return 1
 
     json_files = [f for f in os.listdir(json_dir) if f.endswith('.json')]
 
@@ -96,4 +96,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())

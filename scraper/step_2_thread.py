@@ -15,7 +15,7 @@ from bs4 import Tag
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 import config
-from scraper.utils import get_soup, get_board_path, sanitize_filename
+from scraper.utils import get_soup, get_board_path
 
 
 def parse_post(post_element, base_url):
@@ -269,16 +269,16 @@ def main():
                 print(
                     f"Error: No CSV file found in {board_path}. Please run Step 1 first."
                 )
-                return
+                return 1
             csv_filepath = os.path.join(board_path, sorted(csv_files, reverse=True)[0])
             print(f"Found latest CSV: {csv_filepath}")
         except Exception as e:
             print(f"Error finding latest CSV file: {e}")
-            return
+            return 1
 
     if not os.path.exists(csv_filepath):
         print(f"Error: CSV file not found at {csv_filepath}")
-        return
+        return 1
 
     with open(csv_filepath, "r", encoding="utf-8") as f:
         all_threads = list(csv.DictReader(f))
@@ -383,4 +383,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
