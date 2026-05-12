@@ -1,5 +1,7 @@
 output/*
 example/*
+.env
+.bbs_cookies
 
 **/.mypy_cache
 __pycache__/

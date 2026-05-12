@@ -7,11 +7,9 @@ import logging
 import os
 import sys
 
-import requests
-
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import config
-from scraper.utils import get_board_path, sanitize_filename
+from scraper.utils import fetch, get_board_path, sanitize_filename
 
 
 def download_attachments(thread_data, board_path, run_mode):
@@ -29,11 +27,6 @@ def download_attachments(thread_data, board_path, run_mode):
     attachment_dir = os.path.join(board_path, config.ATTACHMENT_DIR_NAME, thread_data['id'])
     os.makedirs(attachment_dir, exist_ok=True)
 
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'
-        ' AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.0.0 Safari/537.36'
-    }
-
     for attachment in all_attachments:
         filename = sanitize_filename(attachment['filename'])
         filepath = os.path.join(attachment_dir, filename)
@@ -45,8 +38,7 @@ def download_attachments(thread_data, board_path, run_mode):
         try:
             if attachment['type'] == 'url':
                 logging.info(f"Downloading attachment {attachment['url']} to {filepath}")
-                response = requests.get(attachment['url'], headers=headers, timeout=60)
-                response.raise_for_status()
+                response = fetch(attachment['url'], timeout=60)
                 with open(filepath, 'wb') as f:
                     f.write(response.content)
             elif attachment['type'] == 'base64':

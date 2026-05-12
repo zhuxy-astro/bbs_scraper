@@ -13,6 +13,9 @@ RUN_MODE = "update"
 
 # Base URL for the BBS
 BASE_URL = "https://bbs.pku.edu.cn/v2/"
+BBS_LOGIN_URL = "https://bbs.pku.edu.cn/v2/login.php"
+BBS_LOGIN_API_URL = "https://bbs.pku.edu.cn/v2/ajax/login.php"
+BBS_COOKIE_FILE = ".bbs_cookies"
 
 # Output directory structure
 OUTPUT_DIR = "output"
