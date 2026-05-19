@@ -17,6 +17,11 @@ BBS_LOGIN_URL = "https://bbs.pku.edu.cn/v2/login.php"
 BBS_LOGIN_API_URL = "https://bbs.pku.edu.cn/v2/ajax/login.php"
 BBS_COOKIE_FILE = ".bbs_cookies"
 
+# Thread page fetch tuning
+THREAD_PAGE_TIMEOUT = 180
+THREAD_PAGE_RETRIES = 4
+THREAD_PAGE_RETRY_DELAYS = (0, 5, 15, 30)
+
 # Output directory structure
 OUTPUT_DIR = "output"
 DATA_DIR_NAME = "data"

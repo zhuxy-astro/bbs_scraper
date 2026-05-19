@@ -27,6 +27,9 @@
 -   `RUN_MODE`：操作模式。
     -   `'overwrite'`：从头开始抓取整个版面。
     -   `'update'`：仅抓取自上次运行以来新增或更新的帖子。
+-   `THREAD_PAGE_TIMEOUT`：单个帖子页面请求的超时时间（秒）。
+-   `THREAD_PAGE_RETRIES`：单个帖子页面在可疑或不完整时的局部重试次数。
+-   `THREAD_PAGE_RETRY_DELAYS`：单个帖子页面局部重试前的等待时间（秒）。
 
 如需登录，在项目根目录创建 `.env` 文件，写入：
 
@@ -63,9 +66,11 @@ python -m scraper.step_1_index [--board_id BOARD_ID] [--mode MODE]
 python -m scraper.step_2_thread [--board_id BOARD_ID] [--mode MODE]
 ```
 
-由于一些帖子中内置的图片是以base64编码嵌入在正文中的（包括主贴和评论），而不是像普通附件那样单独存储，因此这些图片会直接包含在 JSON 文件中。这会导致这些帖子获取速度比较慢，且生成的 JSON 文件体积较大。
+如果一些帖子中内置的图片是以base64编码嵌入在正文中的（包括主贴和评论），程序会把这些图片从正文中分离出来，放入附件列表，后续由步骤 3 保存为独立文件。这样可以避免 JSON 文件过大，也更利于后续渲染和更新。
 
-在`update`模式下，此步骤只会获取此前没有JSON文件的新帖子，以及那些在步骤 1 中回复数量增加或最后回复时间更新的帖子。
+此步骤会对抓到的页面做额外校验：如果页面缺少 `threadid`、标题、楼层或正文卡片，或者页面中的 `threadid` 与目标 URL 不一致，会自动进行局部重试，并在必要时重建 session。
+
+在`update`模式下，此步骤只会获取此前没有JSON文件的新帖子，以及那些在步骤 1 中回复数量增加、最后回复时间更新，或者已有 JSON 中 URL 与最新 CSV 不一致的帖子。
 
 ### 步骤 3：下载附件（可跳过）
 
@@ -76,6 +81,8 @@ python -m scraper.step_3_download_attachments [--board_id BOARD_ID] [--mode MODE
 ```
 
 在`update`模式下，此步骤会跳过所有已经存在的附件。
+
+对于从正文中分离出来的base64内嵌图片，这一步也会负责把它们保存为独立附件文件，并清理 JSON 中残留的base64内容。
 
 ### 步骤 4：渲染 HTML
 
@@ -88,6 +95,25 @@ python -m scraper.step_4_render [--board_id BOARD_ID]
 这一步不支持`update`模式，强制渲染所有帖子的HTML。
 
 此步骤完成后，在浏览器中打开 `output/$BOARD_ID/html/index.html` 即可查看所有归档。
+
+## 维修与清理
+
+如果历史输出中存在旧格式的base64内嵌图片，或者想检查并修复 CSV/JSON 的 URL 不一致问题，可以使用：
+
+```bash
+python -m scraper.repair_outputs --dry_run
+python -m scraper.repair_outputs
+python -m scraper.repair_outputs --board_ids 696
+```
+
+说明：
+-   `--dry_run`：只检查，不写入文件。
+-   `--board_ids`：只处理指定版面，多个版面可用逗号分隔。
+
+该脚本会：
+-   离线清理旧 JSON 中正文内嵌的base64图片，并把它们统一转换为当前的附件分离格式。
+-   检查最新 CSV 与 JSON 的 URL 是否一致；只有在缺失或 URL 不一致时，才会定向重抓对应帖子。
+-   在有变更时，重建对应版面的 HTML。
 
 ## 可能存在的问题
 

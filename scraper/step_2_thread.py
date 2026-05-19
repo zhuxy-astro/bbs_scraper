@@ -2,6 +2,7 @@
 import argparse
 from alive_progress import alive_bar
 import csv
+import hashlib
 import json
 import logging
 import os
@@ -11,14 +12,114 @@ import time
 from datetime import datetime
 from urllib.parse import urljoin, urlparse, parse_qs, urlencode
 
-from bs4 import Tag
+from bs4 import BeautifulSoup, Tag
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 import config
-from scraper.utils import get_soup, get_board_path
+from scraper.utils import get_soup, get_board_path, reset_session
 
 
-def parse_post(post_element, base_url):
+THREAD_PAGE_TIMEOUT = getattr(config, "THREAD_PAGE_TIMEOUT", 180)
+THREAD_PAGE_RETRIES = getattr(config, "THREAD_PAGE_RETRIES", 4)
+THREAD_PAGE_RETRY_DELAYS = tuple(
+    getattr(config, "THREAD_PAGE_RETRY_DELAYS", (0, 5, 15, 30))
+)
+
+
+def get_url_thread_id(url):
+    """Extracts threadid from a BBS post URL."""
+    return (parse_qs(urlparse(url).query).get("threadid") or [None])[0]
+
+
+def get_page_thread_id(soup):
+    """Extracts the thread id rendered in a thread page."""
+    for element in soup.select("link[rel=alternate], a[href*='threadid=']"):
+        href = element.get("href")
+        if not href:
+            continue
+        parsed = urlparse(urljoin(config.BASE_URL, href))
+        thread_ids = parse_qs(parsed.query).get("threadid")
+        if thread_ids:
+            return thread_ids[0]
+    return None
+
+
+def is_thread_page_complete(soup, expected_page_thread_id):
+    """Checks whether the fetched page looks like the requested thread page."""
+    if not soup:
+        return False, "empty soup"
+
+    page_thread_id = get_page_thread_id(soup)
+    if expected_page_thread_id:
+        if not page_thread_id:
+            return False, "missing page thread id"
+        if str(page_thread_id) != str(expected_page_thread_id):
+            return False, f"thread id mismatch: expected {expected_page_thread_id}, got {page_thread_id}"
+
+    if not soup.select_one("header h3"):
+        return False, "missing thread title"
+    if not soup.select("div.post-card"):
+        return False, "missing post cards"
+    if not soup.select_one("div.post-card span.post-id"):
+        return False, "missing post floor"
+
+    return True, None
+
+
+def fetch_thread_soup(page_url, expected_page_thread_id):
+    """Fetches a thread page with local retries and session reset on suspicious results."""
+    last_reason = "unknown"
+
+    for attempt in range(THREAD_PAGE_RETRIES):
+        delay = THREAD_PAGE_RETRY_DELAYS[min(attempt, len(THREAD_PAGE_RETRY_DELAYS) - 1)]
+        if delay:
+            time.sleep(delay)
+
+        if attempt > 0:
+            logging.warning(
+                f"Retrying thread page fetch ({attempt + 1}/{THREAD_PAGE_RETRIES}) for {page_url}."
+            )
+
+        soup = get_soup(page_url, timeout=THREAD_PAGE_TIMEOUT)
+        is_complete, reason = is_thread_page_complete(soup, expected_page_thread_id)
+        if is_complete:
+            return soup
+
+        last_reason = reason or "page validation failed"
+        logging.warning(f"Suspicious thread page for {page_url}: {last_reason}")
+        reset_session(clear_login=True)
+
+    logging.error(f"Failed to fetch a valid thread page for {page_url}: {last_reason}")
+    return None
+
+
+def extract_inline_images(content_element, post_index):
+    """Moves base64 inline image payloads out of the HTML body."""
+    attachments = []
+    inline_index = 1
+
+    for img in content_element.select("img"):
+        img_src = img.get("src")
+        if not img_src or not img_src.startswith("data:image"):
+            continue
+
+        match = re.match(r"data:image/([a-zA-Z0-9.+-]+);base64,", img_src)
+        file_ext = (match.group(1) if match else "png").split("+", 1)[0].lower()
+        payload_hash = hashlib.sha1(img_src.encode("utf-8")).hexdigest()[:10]
+        filename = f"inline_p{post_index}_{inline_index}_{payload_hash}.{file_ext}"
+
+        attachments.append({"type": "base64", "data": img_src, "filename": filename})
+        placeholder = BeautifulSoup(
+            f'<p class="inline-image-placeholder">[内嵌图片已保存为附件：{filename}]</p>',
+            "html.parser",
+        ).p
+        img.replace_with(placeholder)
+        inline_index += 1
+
+    return attachments
+
+
+def parse_post(post_element, base_url, post_index=0):
     """Parses a single post element and returns a dictionary of its data."""
     post_data = {"post_time": "N/A", "edit_time": "N/A"}
     try:
@@ -62,6 +163,7 @@ def parse_post(post_element, base_url):
         if not content_element:
             return None
 
+        attachments = extract_inline_images(content_element, post_index)
         quotes = []
         body_content_parts = []
         all_children = list(content_element.children)
@@ -107,7 +209,6 @@ def parse_post(post_element, base_url):
         post_data["content"] = "".join(body_content_parts).strip()
 
         # Attachment logic
-        attachments = []
         for img in post_element.select("div.content div.body img"):
             img_src = img.get("src")
             if not img_src:
@@ -120,15 +221,6 @@ def parse_post(post_element, base_url):
                         "filename": os.path.basename(urlparse(img_src).path),
                     }
                 )
-            elif img_src.startswith("data:image"):
-                try:
-                    file_ext = re.search(r"data:image/(\w+);", img_src).group(1)
-                    filename = f"inline_{int(time.time() * 1000)}.{file_ext}"
-                    attachments.append(
-                        {"type": "base64", "data": img_src, "filename": filename}
-                    )
-                except Exception as e:
-                    logging.warning(f"Could not parse base64 image data: {e}")
 
         attachment_div = post_element.select_one("div.attachment")
         if attachment_div:
@@ -157,10 +249,11 @@ def parse_post(post_element, base_url):
 def crawl_thread(thread_url, thread_id):
     """Crawls a single thread, handling multiple pages by constructing page URLs."""
     thread_data = {"posts": []}
+    expected_page_thread_id = get_url_thread_id(thread_url)
 
     # --- First page ---
     logging.info(f"Crawling thread page 1: {thread_url}")
-    soup = get_soup(thread_url)
+    soup = fetch_thread_soup(thread_url, expected_page_thread_id)
     if not soup:
         return None
 
@@ -175,7 +268,9 @@ def crawl_thread(thread_url, thread_id):
 
     # Parse posts on first page
     for post_element in soup.select("div.post-card"):
-        post_content = parse_post(post_element, config.BASE_URL)
+        post_content = parse_post(
+            post_element, config.BASE_URL, len(thread_data["posts"]) + 1
+        )
         if post_content:
             thread_data["posts"].append(post_content)
 
@@ -202,13 +297,15 @@ def crawl_thread(thread_url, thread_id):
         next_page_url = parts._replace(query=new_query).geturl()
 
         logging.info(f"Crawling thread page {page_num}/{total_pages}: {next_page_url}")
-        page_soup = get_soup(next_page_url)
+        page_soup = fetch_thread_soup(next_page_url, expected_page_thread_id)
         if not page_soup:
             logging.warning(f"Warning: Failed to fetch page {page_num}. Skipping.")
             continue
 
         for post_element in page_soup.select("div.post-card"):
-            post_content = parse_post(post_element, config.BASE_URL)
+            post_content = parse_post(
+                post_element, config.BASE_URL, len(thread_data["posts"]) + 1
+            )
             if post_content:
                 thread_data["posts"].append(post_content)
 
@@ -297,6 +394,13 @@ def main():
             try:
                 with open(json_filepath, "r", encoding="utf-8") as f:
                     existing_json = json.load(f)
+
+                if existing_json.get("url") != thread_meta.get("url"):
+                    logging.warning(
+                        f"Existing JSON URL mismatch for thread {thread_meta['id']}. Re-crawling."
+                    )
+                    threads_to_process.append(thread_meta)
+                    continue
 
                 replies_in_csv = int(thread_meta["replies"])
                 replies_in_json = len(existing_json.get("posts", [])) - 1

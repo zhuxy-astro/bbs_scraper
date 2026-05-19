@@ -15,24 +15,29 @@ from scraper.utils import fetch, get_board_path, sanitize_filename
 def download_attachments(thread_data, board_path, run_mode):
     """Downloads attachments for a given thread."""
     if not thread_data or not thread_data.get('id'):
-        return
+        return False
 
     # Flatten the list of all attachments from all posts
     all_attachments = [att for post in thread_data.get('posts', []) for att in post.get('attachments', [])]
 
     if not all_attachments:
-        return  # No attachments in this thread, so do nothing.
+        return False  # No attachments in this thread, so do nothing.
 
     # Create directory only if there are attachments
     attachment_dir = os.path.join(board_path, config.ATTACHMENT_DIR_NAME, thread_data['id'])
     os.makedirs(attachment_dir, exist_ok=True)
+    modified = False
 
     for attachment in all_attachments:
         filename = sanitize_filename(attachment['filename'])
         filepath = os.path.join(attachment_dir, filename)
 
         if run_mode == 'update' and os.path.exists(filepath):
-            logging.info("Attachment {filename} already exists. Skipping download in update mode.")
+            logging.info(f"Attachment {filename} already exists. Skipping download in update mode.")
+            if attachment.get('type') == 'base64' and attachment.pop('data', None):
+                attachment['type'] = 'inline_file'
+                attachment['saved'] = True
+                modified = True
             continue
 
         try:
@@ -47,8 +52,14 @@ def download_attachments(thread_data, board_path, run_mode):
                 data = base64.b64decode(encoded)
                 with open(filepath, 'wb') as f:
                     f.write(data)
+                attachment.pop('data', None)
+                attachment['type'] = 'inline_file'
+                attachment['saved'] = True
+                modified = True
         except Exception as e:
             logging.error(f"Failed to download attachment {attachment.get('url', 'N/A')}: {e}")
+
+    return modified
 
 
 def main():
@@ -80,7 +91,10 @@ def main():
             with open(json_filepath, 'r', encoding='utf-8') as f:
                 thread_data = json.load(f)
 
-            download_attachments(thread_data, board_path, args.mode)
+            modified = download_attachments(thread_data, board_path, args.mode)
+            if modified:
+                with open(json_filepath, 'w', encoding='utf-8') as f:
+                    json.dump(thread_data, f, ensure_ascii=False, indent=4)
 
             bar()
 

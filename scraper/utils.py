@@ -70,6 +70,14 @@ def get_session():
     return _session
 
 
+def reset_session(clear_login=False):
+    """Drops the shared session so the next fetch starts fresh."""
+    global _session, _logged_in
+    _session = None
+    if clear_login:
+        _logged_in = False
+
+
 def login(force=False):
     """Logs in to BBS with credentials from environment or .env."""
     global _logged_in
@@ -127,10 +135,10 @@ def fetch(url, timeout=30, require_login=True, **kwargs):
     return response
 
 
-def get_soup(url):
+def get_soup(url, timeout=30):
     """Fetches a URL and returns a BeautifulSoup object."""
     try:
-        response = fetch(url, timeout=30)
+        response = fetch(url, timeout=timeout)
         return BeautifulSoup(response.text, 'html.parser')
     except requests.exceptions.RequestException as e:
         print(f"Error fetching {url}: {e}")
